@@ -1,0 +1,16 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Environments
+.env/
+.venv/
+
+!requirements.txt
+*.txt
+*.bat
+
+training/checkpoints/*.pth.tar
+training/runs/events.*
+training/data/MNIST/
+
