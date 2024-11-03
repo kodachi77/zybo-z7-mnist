@@ -92,6 +92,10 @@ class FC(Module):
             x = mod(x)
         return x
 
+    def load_checkpoint(self, checkpoint):
+        package = torch.load(checkpoint, map_location='cpu')
+        model_state_dict = package['state_dict'] if package.get('state_dict') else package
+        self.load_state_dict(model_state_dict, strict=True)
 
 def fc(cfg=None):
     weight_bit_width = 1  #> cfg.getint('QUANT', 'WEIGHT_BIT_WIDTH')
