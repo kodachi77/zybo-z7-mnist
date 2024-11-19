@@ -17,13 +17,17 @@ from qonnx.util.cleanup import cleanup as qonnx_cleanup
 
 from qonnx.transformation.insert_topk import InsertTopK
 
-
 from finn.transformation.qonnx.convert_qonnx_to_finn import ConvertQONNXtoFINN
 from finn.builder.build_dataflow_config import DataflowBuildConfig, VerificationStepType
 from finn.builder.build_dataflow_steps import verify_step, step_tidy_up
 
+from finn.util.pytorch import ToTensor
+from qonnx.transformation.merge_onnx_models import MergeONNXModels
+from qonnx.core.datatype import DataType
+
 
 def custom_step_qonnx_to_finn(model: ModelWrapper, cfg: DataflowBuildConfig):
+
     model = model.transform(ConvertQONNXtoFINN())
 
     if VerificationStepType.QONNX_TO_FINN_PYTHON in cfg._resolve_verification_steps():
@@ -33,6 +37,27 @@ def custom_step_qonnx_to_finn(model: ModelWrapper, cfg: DataflowBuildConfig):
 
 
 def custom_step_tidy_up(model: ModelWrapper, cfg: DataflowBuildConfig):
+
+    inp_name = model.graph.input[0].name
+    ishape = model.get_tensor_shape(inp_name)
+
+    # preprocessing: torchvision's ToTensor divides uint8 inputs by 255
+    chkpt_preproc_name = os.path.join(cfg.output_dir, "intermediate_models/custom_step_tidy_up_preprocess.onnx")
+
+    totensor_pyt = ToTensor()
+    export_qonnx(totensor_pyt, torch.randn(ishape), chkpt_preproc_name)
+    qonnx_cleanup(chkpt_preproc_name, out_file=chkpt_preproc_name)
+
+    pre_model = ModelWrapper(chkpt_preproc_name)
+    pre_model = pre_model.transform(ConvertQONNXtoFINN())
+
+    # join preprocessing and core model
+    model = model.transform(MergeONNXModels(pre_model))
+
+    # add input quantization annotation: UINT8 for all BNN-PYNQ models
+    inp_name = model.graph.input[0].name
+    model.set_tensor_datatype(inp_name, DataType["UINT8"])
+
     model = model.transform(InsertTopK(k=1))
     model = step_tidy_up(model, cfg)
 
@@ -70,8 +95,9 @@ def custom_step_gen_tb_and_io(model, cfg):
     inp_dtype = model.get_tensor_datatype(inp_name)
     # now re-shape input data into the folded shape and do hex packing
     inp_data = inp_data.reshape(inp_shape_folded)
-    #>print(inp_shape_folded)
-    #>print(inp_dtype)
+    #print(inp_dtype)
+    #print(inp_stream_width)
+    #print(str(inp_data))
     inp_data_packed = dpk.pack_innermost_dim_as_hex_string(
         inp_data, inp_dtype, inp_stream_width, prefix="", reverse_inner=True
     )
@@ -131,7 +157,8 @@ from models import fc
 sfc = fc()
 
 model_name = "sfc_1w1a"
-platform_name = "Zybo-z7-20"
+platform_name = "fpga"
+#platform_name = "Zybo-z7-20"
 
 # load checkpoint
 model_filename = os.path.join(import_path, 'checkpoints/sfc_1w1a.pth')
@@ -145,17 +172,19 @@ export_onnx_path = "model.onnx"
 export_qonnx(sfc, torch.randn(1, 1, 28, 28), export_onnx_path)
 qonnx_cleanup(export_onnx_path, out_file=export_onnx_path)
 
-build_steps = build_cfg.default_build_dataflow_steps # + [custom_step_gen_tb_and_io]
-
+build_steps = build_cfg.default_build_dataflow_steps + [custom_step_gen_tb_and_io]
 build_steps = [custom_step_qonnx_to_finn if s == "step_qonnx_to_finn" else s for s in build_steps]
 build_steps = [custom_step_tidy_up if s == "step_tidy_up" else s for s in build_steps]
 
 print(build_steps)
 
+# step_target_fps_parallelization
+
 cfg = build.DataflowBuildConfig(
     steps=build_steps,
     board=platform_name,
     output_dir="output_%s_%s" % (model_name, platform_name),
+    #target_fps=5000,
     synth_clk_period_ns=10.0,
     folding_config_file="folding_config.json",
     fpga_part="xc7z020clg400-1",
