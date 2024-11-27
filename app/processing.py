@@ -186,8 +186,6 @@ def process_image(image, line_cnt=15, debug=False):
 
     # Find contours
     contours, _ = cv2.findContours(dilation, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    print(len(contours))
-
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
     # List to hold bounding boxes and their corresponding contours
@@ -212,8 +210,9 @@ def process_image(image, line_cnt=15, debug=False):
                     cv2.rectangle(deskewed_image, (x, y), (x + w, y + h), (0, 0, 0), 2)
                 bounding_boxes.append((x, y, w, h))
         else:
-            print(f"Skipping {x, y, w, h}")
-            cv2.rectangle(deskewed_image, (x, y), (x + w, y + h), (128, 128, 128), 2)
+            if debug:
+                print(f"Skipping {x, y, w, h}")
+                cv2.rectangle(deskewed_image, (x, y), (x + w, y + h), (128, 128, 128), 2)
 
     # Sort bounding boxes top-to-bottom, then left-to-right
     bounding_boxes = sorted(bounding_boxes, key=lambda b: (b[1], b[0]))
