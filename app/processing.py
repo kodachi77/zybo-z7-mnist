@@ -231,7 +231,7 @@ def process_image(image, line_cnt=15, debug=False):
     for x, y, w, h in bounding_boxes:
         # Crop the number
         number_image = binary[y : y + h, x : x + w]
-        number_image = cv2.bitwise_not(number_image)
+        #number_image = cv2.bitwise_not(number_image)
         resized = cv2.resize(number_image, (28, 28), interpolation=cv2.INTER_AREA)
 
         if debug:

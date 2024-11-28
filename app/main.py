@@ -23,13 +23,13 @@ def image_capture():
 
 def main():
 
-    #ret, frame = image_capture()
-    #if not ret:
-    #    return
-    #cv2.imwrite("001-captured-frame.jpg", frame)
+    ret, frame = image_capture()
+    if not ret:
+        return
+    cv2.imwrite("001-captured-frame.jpg", frame)
 
-    frame = cv2.imread("001-captured-frame.jpg")
-    output_array = process_image(frame, debug=True)
+    #frame = cv2.imread("001-captured-frame.jpg")
+    output_array = process_image(frame, debug=False)
     print(f"Processed array shape: {output_array.shape}")
 
 
